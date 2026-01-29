@@ -27,3 +27,8 @@ build/
 # opencode
 AGENTS.md
 .opencode/
+
+#python
+__pycache__/
+*.py[cod]
+*$py.class

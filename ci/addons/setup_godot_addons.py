@@ -1,16 +1,27 @@
 #!/usr/bin/env python3
 from collections import namedtuple
 import subprocess
+import sys
 import os
 from pathlib import Path
+
+# Add the parent directory to Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+
+from globals.logger import Logger
+logger = Logger(False)
+
 
 SUBMODULES_FOLDER = ".submodules"
 
 Submodule = namedtuple('submodule', ['url', 'path', 'sparse_folder', 'branch'])
 
 def main():
+
     # Step out of ci/ folder
-    os.chdir("..")
+    os.chdir("../..")
 
     repo_urls = [
         Submodule("git@github.com:bitwes/Gut.git",                                      "gut",                          "addons/gut",                           "main"),
@@ -25,8 +36,9 @@ def main():
         for repo in repo_urls:
             add_submodule_with_sparse_checkout(repo.url, repo.path, repo.sparse_folder, repo.branch)
             create_symbolic_links(repo.path, repo.sparse_folder)
+            logger.print_success(f"Submodule {repo.path} configured\n")
     except Exception as e:
-        print(f" >>> Error: {e}")
+        logger.print_error(f"{e}")
 
 
 def run_command(cmd, capture_output=True, cwd=None):
@@ -42,8 +54,8 @@ def run_command(cmd, capture_output=True, cwd=None):
         )
         return result.stdout.strip() if capture_output else ""
     except subprocess.CalledProcessError as e:
-        print(f" >>> Command failed: {cmd}")
-        print(f" >>> Error: {e.stderr}")
+        Logger.print_error(f"Command failed: {cmd}")
+        Logger.print_error(f"{e.stderr}")
         raise
 
 
@@ -62,7 +74,7 @@ def add_submodule_with_sparse_checkout(repo_url, submodule_path=None, sparse_fol
         submodule_path = Path(repo_url).stem
     submodule_path = SUBMODULES_FOLDER + "/" + submodule_path
 
-    print(f" >>> Adding submodule {repo_url} to {submodule_path}")
+    logger.print_log(f"Adding submodule {repo_url} to {submodule_path}")
     
     # Get current directory for later restoration
     original_dir = Path.cwd()
@@ -93,9 +105,6 @@ def add_submodule_with_sparse_checkout(repo_url, submodule_path=None, sparse_fol
             f.write(f"!\n")
         
         run_command("git sparse-checkout reapply")
-        
-        print(f" >>> Submodule {submodule_path} configured")
-        
     finally:
         # Return to parent directory
         os.chdir(original_dir)
@@ -110,17 +119,17 @@ def create_symbolic_links(path, sparse_folder):
 
     # Remove existing link or file if it exists
     if dest_path.exists() or dest_path.is_symlink():
-        print(f" >>> Removing existing path: {dest_path}")
+        logger.print_debug(f"Removing existing path: {dest_path}", 6)
         os.remove(dest_path)
 
     # Ensure the source exists
     if not src_path.exists():
-        print(f" >>> Source path does not exist: {src_path}")
-        raise
+        logger.print_error(f"Source path does not exist: {src_path}", 6)
+        return
 
     # Create symbolic link
     try:
-        print(f" >>> Linking {src_path} to {dest_path}")
+        logger.print_log(f"Linking {src_path} to {dest_path}", 6)
         os.symlink(src_path, dest_path)
     except OSError as e:
         raise
